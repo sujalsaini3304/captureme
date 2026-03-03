@@ -107,7 +107,7 @@ const Navbar = () => {
                         loading="lazy"
                         alt="logo"
                     />
-                    <span>CaptureMe</span>
+                    <span>SnapDock</span>
                 </div>
 
                 {/* ================= DESKTOP MENU ================= */}
