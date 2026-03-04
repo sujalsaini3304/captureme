@@ -3,18 +3,23 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
 import { BrowserRouter } from 'react-router-dom'
-import Footer from './components/created_ui/Footer.jsx'
+import { ClerkProvider } from "@clerk/clerk-react";
+
+const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+
+const savedTheme = localStorage.getItem("theme");
+
+if (savedTheme === "dark") {
+  document.documentElement.classList.add("dark");
+} else if (savedTheme === "light") {
+  document.documentElement.classList.remove("dark");
+}
+
 
 createRoot(document.getElementById('root')).render(
+  <ClerkProvider publishableKey={clerkPubKey}>
   <BrowserRouter>
-    <div className="min-h-screen flex flex-col">
-      
-      <div className="flex-1 pt-14">
         <App />
-      </div>
-
-      <Footer />
-
-    </div>
   </BrowserRouter>
+  </ClerkProvider>
 )
