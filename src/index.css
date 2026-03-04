@@ -5,6 +5,27 @@
 @custom-variant dark (&:is(.dark *));
 
 
+
+
+/* ============================ThubnailShow================== */
+/* .yarl__thumbnails_track {
+  overflow-x: auto !important;
+  scroll-behavior: smooth !important;
+  -webkit-overflow-scrolling: touch !important;
+} */
+
+/* Hide ugly scrollbar (optional but clean) */
+/* .yarl__thumbnails_track::-webkit-scrollbar {
+  height: 6px;
+} */
+
+/* .yarl__thumbnails_track::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.4);
+  border-radius: 10px;
+} */
+
+/* ============================================================ */
+
 @theme inline {
     --radius-sm: calc(var(--radius) - 4px);
     --radius-md: calc(var(--radius) - 2px);
