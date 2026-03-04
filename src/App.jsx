@@ -30,14 +30,14 @@ const App = () => {
 
   if (!isLoaded) {
     return (
-      <div className="min-h-screen bg-gray-900 text-foreground relative">
+      <div className={`min-h-screen ${localStorage.getItem("theme") === "dark" ? "bg-gray-900" : "bg-white"} text-foreground relative`}>
 
         {/* ── Splash Screen Overlay (blocks all interaction) ── */}
         <div
           className={`
           fixed inset-0 z-[9999]
           flex items-center justify-center
-          bg-gray-900
+          ${localStorage.getItem("theme") === "dark" ? "bg-gray-900" : "bg-white"}
           transition-opacity duration-300
           ${isLoaded ? "opacity-0 pointer-events-none" : "opacity-100 pointer-events-auto"}
         `}
