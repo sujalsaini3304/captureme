@@ -1,7 +1,6 @@
 import { LogOut, Menu, Settings, Upload, User } from "lucide-react";
 import * as React from "react";
 import { Link } from "react-router-dom";
-
 import Box from "@mui/material/Box";
 import Drawer from "@mui/material/Drawer";
 import List from "@mui/material/List";
@@ -10,9 +9,11 @@ import ListItem from "@mui/material/ListItem";
 import ListItemButton from "@mui/material/ListItemButton";
 import ListItemIcon from "@mui/material/ListItemIcon";
 import ListItemText from "@mui/material/ListItemText";
-import ListItemAvatar from "@mui/material/ListItemAvatar";
 import Avatar from '@mui/material/Avatar';
-
+import { useAuth } from "@clerk/clerk-react";
+import pLimit from "p-limit";
+import axios from "axios";
+import imageCompression from "browser-image-compression";
 import { SignOutButton, useUser } from "@clerk/clerk-react";
 import {
     AlertDialog,
@@ -24,8 +25,14 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import useStore from "../../../store";
+
 
 const Navbar = () => {
+    const MAX_FILES = 10;
+    const { setIsUploading , setIsUploadSuccessfull , setIsUploadErrorOccured } = useStore();
+    const { getToken } = useAuth();
+    const limit = pLimit(5);
     const { user, isLoaded } = useUser();
 
     const [open, setOpen] = React.useState(false);
@@ -34,11 +41,125 @@ const Navbar = () => {
 
     const toggleDrawer = (state) => setOpen(state);
 
-    const handleFileChange = (e) => {
+
+    const isTokenExpired = (token) => {
+        try {
+            const payload = JSON.parse(atob(token.split(".")[1]));
+            const currentTime = Math.floor(Date.now() / 1000);
+            return payload.exp < currentTime;
+        } catch {
+            return true;
+        }
+    };
+
+
+    const getValidToken = async (getToken) => {
+
+        let token = await getToken({ template: "backend" });
+
+        if (!token || isTokenExpired(token)) {
+            console.warn("Token expired, fetching new one...");
+            token = await getToken({ template: "backend", skipCache: true });
+        }
+
+        if (!token) {
+            throw new Error("Failed to obtain valid token");
+        }
+
+        return token;
+    };
+
+
+    const handleFileChange = async (e) => {
+
         const files = Array.from(e.target.files);
         if (!files.length) return;
 
-        console.log("Selected files:", files);
+        if (files.length > MAX_FILES) {
+            alert(`You can upload maximum ${MAX_FILES} images at a time`);
+            e.target.value = null;
+            return;
+        }
+
+        try {
+            setIsUploading(true);
+            /* ================= GET CLERK TOKEN ================= */
+            // const token = await getToken({ template: "backend" });
+            const token = await getValidToken(getToken);
+            // console.log("TOKEN:", token);
+
+            /* ================= GET SIGNATURE ================= */
+            const { data } = await axios.get(
+                `${import.meta.env.VITE_EXPRESS_SERVER_ENDPOINT}/api/signature`,
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`
+                    }
+                }
+            );
+
+            const { timestamp, signature, apiKey, cloudName, folder, transformation } = data;
+
+            /* ================= Compressing and UPLOAD FILES ================= */
+            const compressedFiles = await Promise.all(
+                files.map((file) =>
+                    limit(() =>
+                        imageCompression(file, {
+                            maxSizeMB: 2,
+                            maxWidthOrHeight: 2000,
+                            useWebWorker: true,
+                        })
+                    )
+                )
+            );
+
+
+            await Promise.all(
+                compressedFiles.map((file) =>
+                    limit(async () => {
+
+                        const formData = new FormData();
+
+                        formData.append("file", file);
+                        formData.append("api_key", apiKey);
+                        formData.append("timestamp", timestamp);
+                        formData.append("signature", signature);
+                        formData.append("folder", folder);
+                        formData.append("allowed_formats", "jpg,png,jpeg,webp");
+                        formData.append("transformation", transformation);
+
+                        const uploadRes = await axios.post(
+                            `https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`,
+                            formData
+                        );
+
+                        console.log("Uploaded:", uploadRes.data.secure_url);
+                        return uploadRes.data;
+                    })
+                )
+            );
+
+            console.log("All uploads completed");
+            setIsUploadSuccessfull(true);
+
+        } catch (err) {
+            setIsUploadErrorOccured(true);
+            console.error("Upload failed");
+
+            if (err.response) {
+                console.error(err.response.data);
+            } else {
+                console.error(err.message);
+            }
+
+        } finally {
+            setIsUploading(false);
+            setTimeout(() => {
+               setIsUploadErrorOccured(false);
+               setIsUploadSuccessfull(false); 
+            }, 4000);
+        }
+
         e.target.value = null;
     };
 

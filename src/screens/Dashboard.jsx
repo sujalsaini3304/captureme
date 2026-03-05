@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import GridBox from '../components/created_ui/GridBox'
 import Pagination from '@mui/material/Pagination';
 import Stack from '@mui/material/Stack';
@@ -7,6 +7,7 @@ import Backdrop from '@mui/material/Backdrop';
 import CircularProgress from '@mui/material/CircularProgress';
 import { Cross, Search, X } from 'lucide-react';
 import { AlertDescription, AlertTitle } from "@/components/ui/alert"
+import useStore from '../../store';
 
 
 function PaginationRounded() {
@@ -66,7 +67,7 @@ function AlertDestructive() {
       <Alert severity="error" className="max-w-md w-full">
         <AlertTitle>Upload failed</AlertTitle>
         <AlertDescription>
-          Image upload failed , please try again.
+          Image(s) upload failed , please try again.
         </AlertDescription>
       </Alert>
     </div>
@@ -88,14 +89,29 @@ const Dashboard = () => {
   ];
 
   const [open, setOpen] = React.useState(false);
+  const { isUploading ,  setIsUploading , isUploadErrorOccured , isUploadSuccessfull } =  useStore();
 
-  const handleClose = () => {
-    setOpen(false);
-  };
 
-  const handleOpen = () => {
-    setOpen(true);
-  };
+  // const handleClose = () => {
+  //   setOpen(false);
+  // };
+
+  // const handleOpen = () => {
+  //   setOpen(true);
+  // };
+
+  
+
+  useEffect(()=>{
+    if(isUploading){
+      setOpen(true);
+    }
+    else{
+      setOpen(false);
+    }
+  },[isUploading])
+
+
 
   React.useEffect(() => {
     if (open) {
@@ -118,8 +134,16 @@ const Dashboard = () => {
   return (
     <div className="pt-4 min-h-screen bg-white text-gray-900 dark:bg-[#0f172a] dark:text-gray-200 transition-colors duration-300">
 
-      {/* <AlertDestructive/> */}
-      {/* <AlertBasic/> */}
+      {
+        isUploadSuccessfull && !isUploadErrorOccured && (
+          <AlertBasic/>
+        )
+      }
+      {
+        !isUploadSuccessfull && isUploadErrorOccured && (
+          <AlertDestructive/>
+        )
+      }
 
       <Backdrop
         sx={(theme) => ({
@@ -128,19 +152,18 @@ const Dashboard = () => {
           zIndex: theme.zIndex.drawer + 1,
         })}
         open={open}
-        onClick={handleClose}
+        // onClick={handleClose}
       >
         <CircularProgress color="inherit" size={20} />
         <span>Please Wait ...</span>
       </Backdrop>
 
-      <Alert
-        onClick={handleOpen}
+      {/* { !isUploadErrorOccured && !isUploadSuccessfull && <Alert
         severity="warning"
         className=' mx-4'
       >
         This website is in development mode. Please contact developer.
-      </Alert>
+      </Alert>} */}
 
       {images.length != 0 && (
         <div>
