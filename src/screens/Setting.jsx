@@ -16,6 +16,10 @@ import DialogContentText from '@mui/material/DialogContentText';
 import DialogTitle from '@mui/material/DialogTitle';
 import Slide from '@mui/material/Slide';
 import { TriangleAlert } from "lucide-react";
+import { useAuth } from "@clerk/clerk-react";
+import axios from "axios";
+import { useNavigate } from "react-router-dom";
+import CircularProgress from "@mui/material/CircularProgress";
 
 const Transition = React.forwardRef(function Transition(props, ref) {
   return <Slide direction="up" ref={ref} {...props} />;
@@ -26,6 +30,9 @@ export default function Setting() {
   const [dark, setDark] = React.useState(
     localStorage.getItem("theme") === "dark"
   );
+  const [isDeleting, setIsDeleting] = React.useState(false);
+  const { getToken } = useAuth();
+  const navigate = useNavigate();
 
   const handleClickOpen = () => {
     setOpen(true);
@@ -33,6 +40,29 @@ export default function Setting() {
 
   const handleClose = () => {
     setOpen(false);
+  };
+
+  const handleAccountDelete = async () => {
+    try {
+      setIsDeleting(true);
+      const token = await getToken({ template: "SnapDock", skipCache: true });
+
+      await axios.delete(
+        `${import.meta.env.VITE_EXPRESS_SERVER_ENDPOINT}/api/account`,
+        {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        }
+      );
+
+      // Account deleted successfully - redirect to home
+      window.location.href = "/";
+      
+    } catch (error) {
+      console.error("Account deletion error:", error);
+      alert("Failed to delete account. Please try again.");
+      setIsDeleting(false);
+      setOpen(false);
+    }
   };
 
 
@@ -183,11 +213,18 @@ export default function Setting() {
               ".dark &, [data-theme='dark'] &": { color: "#e5e7eb" },
             }}
             onClick={handleClose}
+            disabled={isDeleting}
           >
             Close
           </Button>
-          <Button onClick={handleClose} variant="outlined" color="error">
-            Delete
+          <Button 
+            onClick={handleAccountDelete} 
+            variant="outlined" 
+            color="error"
+            disabled={isDeleting}
+            startIcon={isDeleting ? <CircularProgress size={16} /> : null}
+          >
+            {isDeleting ? "Deleting..." : "Delete"}
           </Button>
         </DialogActions>
       </Dialog>

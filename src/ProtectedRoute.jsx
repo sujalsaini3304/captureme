@@ -1,6 +1,4 @@
 import { useAuth } from "@clerk/clerk-react";
-import { useUser } from "@clerk/clerk-react";
-import { SignInButton } from "@clerk/clerk-react";
 import { Navigate, useLocation } from "react-router-dom";
 
 const ProtectedRoute = ({ children }) => {

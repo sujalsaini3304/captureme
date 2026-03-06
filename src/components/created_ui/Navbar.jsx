@@ -1,4 +1,4 @@
-import { LogOut, Menu, Settings, Upload, User } from "lucide-react";
+import { LogOut, Menu, Settings, Upload, ListChecks, X } from "lucide-react";
 import * as React from "react";
 import { Link } from "react-router-dom";
 import Box from "@mui/material/Box";
@@ -30,7 +30,7 @@ import useStore from "../../../store";
 
 const Navbar = () => {
     const MAX_FILES = 10;
-    const { setIsUploading , setIsUploadSuccessfull , setIsUploadErrorOccured } = useStore();
+    const { setIsUploading, setIsUploadSuccessfull, setIsUploadErrorOccured, selectionMode, setSelectionMode } = useStore();
     const { getToken } = useAuth();
     const limit = pLimit(5);
     const { user, isLoaded } = useUser();
@@ -42,25 +42,9 @@ const Navbar = () => {
     const toggleDrawer = (state) => setOpen(state);
 
 
-    const isTokenExpired = (token) => {
-        try {
-            const payload = JSON.parse(atob(token.split(".")[1]));
-            const currentTime = Math.floor(Date.now() / 1000);
-            return payload.exp < currentTime;
-        } catch {
-            return true;
-        }
-    };
-
-
     const getValidToken = async (getToken) => {
-
-        let token = await getToken({ template: "backend" });
-
-        if (!token || isTokenExpired(token)) {
-            console.warn("Token expired, fetching new one...");
-            token = await getToken({ template: "backend", skipCache: true });
-        }
+        // Use SnapDock template (600s lifetime) with skipCache to always get fresh token
+        const token = await getToken({ template: "SnapDock", skipCache: true });
 
         if (!token) {
             throw new Error("Failed to obtain valid token");
@@ -114,7 +98,7 @@ const Navbar = () => {
             );
 
 
-            await Promise.all(
+            const uploadedImages = await Promise.all(
                 compressedFiles.map((file) =>
                     limit(async () => {
 
@@ -133,10 +117,32 @@ const Navbar = () => {
                             formData
                         );
 
-                        console.log("Uploaded:", uploadRes.data.secure_url);
-                        return uploadRes.data;
+                        return {
+                            public_id: uploadRes.data.public_id,
+                            secure_url: uploadRes.data.secure_url,
+                            width: uploadRes.data.width,
+                            height: uploadRes.data.height,
+                            format: uploadRes.data.format,
+                            bytes: uploadRes.data.bytes
+                        };
+
                     })
                 )
+            );
+
+            console.log("UPLOAD RESULT:", uploadedImages);
+
+
+            await axios.post(
+                `${import.meta.env.VITE_EXPRESS_SERVER_ENDPOINT}/api/images/save`,
+                {
+                    images: uploadedImages,
+                },
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`
+                    }
+                }
             );
 
             console.log("All uploads completed");
@@ -155,8 +161,8 @@ const Navbar = () => {
         } finally {
             setIsUploading(false);
             setTimeout(() => {
-               setIsUploadErrorOccured(false);
-               setIsUploadSuccessfull(false); 
+                setIsUploadErrorOccured(false);
+                setIsUploadSuccessfull(false);
             }, 4000);
         }
 
@@ -342,6 +348,21 @@ const Navbar = () => {
                         <Upload size={20} />
                     </button>
 
+                    <button
+                        onClick={() => setSelectionMode(!selectionMode)}
+                        className={`
+                            cursor-pointer
+                              p-2 rounded-full
+                              hover:bg-gray-100 dark:hover:bg-gray-800
+                              transition-all duration-200
+                              flex items-center justify-center
+                              ${selectionMode ? "text-blue-500" : ""}
+                            `}
+                        aria-label={selectionMode ? "Cancel selection" : "Select images"}
+                    >
+                        {selectionMode ? <X size={20} /> : <ListChecks size={20} />}
+                    </button>
+
                     <Link to="/setting">
                         <button
                             className="
@@ -371,12 +392,29 @@ const Navbar = () => {
 
                 </div>
 
-                {/* MOBILE UPLOAD */}
-                <div
-                    onClick={() => fileInputRef.current.click()}
-                    className="sm:hidden ml-auto cursor-pointer hover:text-blue-600"
-                >
-                    <Upload size={20} />
+                {/* MOBILE UPLOAD + SELECT (mobile only) */}
+                <div className="sm:hidden ml-auto flex items-center gap-3 flex-shrink-0">
+
+                    {/* Upload */}
+                    <div
+                        onClick={() => fileInputRef.current.click()}
+                        className="cursor-pointer hover:text-blue-600 flex items-center justify-center p-1"
+                    >
+                        <Upload size={22} />
+                    </div>
+
+                    {/* Select toggle */}
+                    <button
+                        onClick={() => setSelectionMode(!selectionMode)}
+                        className={`cursor-pointer transition-colors flex items-center justify-center p-1 ${selectionMode
+                            ? "text-blue-500"
+                            : "hover:text-blue-600"
+                            }`}
+                        aria-label={selectionMode ? "Cancel selection" : "Select images"}
+                    >
+                        {selectionMode ? <X size={22} /> : <ListChecks size={22} />}
+                    </button>
+
                 </div>
 
                 <input
