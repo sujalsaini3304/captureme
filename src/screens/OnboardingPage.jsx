@@ -6,7 +6,8 @@ import LockOutlineIcon from "@mui/icons-material/LockOutline";
 import CloudUploadOutlinedIcon from "@mui/icons-material/CloudUploadOutlined";
 import FlashOnOutlinedIcon from "@mui/icons-material/FlashOnOutlined";
 import AOS from "aos";
-import { SignInButton } from "@clerk/clerk-react";
+import { Link } from "react-router-dom";
+
 
 const Onboarding = () => {
     useEffect(() => {
@@ -69,7 +70,8 @@ const Onboarding = () => {
                     </p>
 
                     <div className="mt-10 flex flex-col sm:flex-row gap-4">
-                        <SignInButton>
+                
+                        <Link to={"/login"} >
                             <Button
                                 variant="outlined"
                                 color="primary"
@@ -78,7 +80,8 @@ const Onboarding = () => {
                             >
                                 Get Started <ArrowRight size={18} />
                             </Button>
-                        </SignInButton>
+                        </Link>
+                        
                     </div>
                 </section>
 

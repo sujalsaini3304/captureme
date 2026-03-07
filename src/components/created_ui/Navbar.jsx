@@ -1,6 +1,6 @@
 import { LogOut, Menu, Settings, Upload, ListChecks, X } from "lucide-react";
 import * as React from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Drawer from "@mui/material/Drawer";
 import List from "@mui/material/List";
@@ -10,11 +10,11 @@ import ListItemButton from "@mui/material/ListItemButton";
 import ListItemIcon from "@mui/material/ListItemIcon";
 import ListItemText from "@mui/material/ListItemText";
 import Avatar from '@mui/material/Avatar';
-import { useAuth } from "@clerk/clerk-react";
 import pLimit from "p-limit";
 import axios from "axios";
 import imageCompression from "browser-image-compression";
-import { SignOutButton, useUser } from "@clerk/clerk-react";
+import { auth } from "../../../firebase.config";
+import { getIdToken, onAuthStateChanged, signOut } from "firebase/auth";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -31,20 +31,31 @@ import useStore from "../../../store";
 const Navbar = () => {
     const MAX_FILES = 10;
     const { setIsUploading, setIsUploadSuccessfull, setIsUploadErrorOccured, selectionMode, setSelectionMode } = useStore();
-    const { getToken } = useAuth();
     const limit = pLimit(5);
-    const { user, isLoaded } = useUser();
+    const navigate = useNavigate();
 
     const [open, setOpen] = React.useState(false);
     const [logoutOpen, setLogoutOpen] = React.useState(false);
     const fileInputRef = React.useRef(null);
+    const [firebaseUser, setFirebaseUser] = React.useState(auth.currentUser);
 
     const toggleDrawer = (state) => setOpen(state);
 
 
-    const getValidToken = async (getToken) => {
-        // Use SnapDock template (600s lifetime) with skipCache to always get fresh token
-        const token = await getToken({ template: "SnapDock", skipCache: true });
+    React.useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, (user) => {
+            setFirebaseUser(user);
+        });
+
+        return () => unsubscribe();
+    }, []);
+
+    const getValidToken = async () => {
+        if (!auth.currentUser) {
+            throw new Error("User is not authenticated");
+        }
+
+        const token = await getIdToken(auth.currentUser, true);
 
         if (!token) {
             throw new Error("Failed to obtain valid token");
@@ -67,9 +78,7 @@ const Navbar = () => {
 
         try {
             setIsUploading(true);
-            /* ================= GET CLERK TOKEN ================= */
-            // const token = await getToken({ template: "backend" });
-            const token = await getValidToken(getToken);
+            const token = await getValidToken();
             // console.log("TOKEN:", token);
 
             /* ================= GET SIGNATURE ================= */
@@ -169,6 +178,17 @@ const Navbar = () => {
         e.target.value = null;
     };
 
+    const handleLogout = async () => {
+        try {
+            await signOut(auth);
+            setLogoutOpen(false);
+            navigate("/login", { replace: true });
+        } catch (error) {
+            console.error("Logout failed:", error);
+            alert("Failed to logout. Please try again.");
+        }
+    };
+
     /* ================= DRAWER ================= */
 
     /* ================= DRAWER ================= */
@@ -182,7 +202,7 @@ const Navbar = () => {
             <List>
 
                 {/* ── USER PROFILE ── */}
-                {isLoaded && (
+                {firebaseUser && (
                     <ListItem disablePadding>
                         <ListItemButton
                             sx={{
@@ -196,23 +216,23 @@ const Navbar = () => {
                         >
                             {/* Avatar */}
                             <Box sx={{ flexShrink: 0 }}>
-                                {user?.imageUrl ? (
+                                {firebaseUser.photoURL ? (
                                     <img
-                                        src={user.imageUrl}
+                                        src={firebaseUser.photoURL}
                                         alt="profile"
                                         className="h-10 w-10 rounded-full object-cover border border-gray-200 dark:border-gray-700"
                                     />
                                 ) : (
                                     <Avatar sx={{ width: 40, height: 40 }}>
-                                        {user?.fullName?.charAt(0).toUpperCase()}
+                                        {(firebaseUser.displayName || firebaseUser.email || "U").charAt(0).toUpperCase()}
                                     </Avatar>
                                 )}
                             </Box>
 
                             {/* User Info */}
                             <ListItemText
-                                primary={user?.fullName || "User"}
-                                secondary={user?.primaryEmailAddress?.emailAddress}
+                                primary={firebaseUser.displayName || "User"}
+                                secondary={firebaseUser.email || ""}
                                 sx={{
                                     overflow: "hidden",
                                     minWidth: 0,
@@ -220,7 +240,7 @@ const Navbar = () => {
                                     m: 0,
                                 }}
                                 primaryTypographyProps={{
-                                    title: user?.fullName,
+                                    title: firebaseUser.displayName,
                                     sx: {
                                         fontSize: { xs: "0.8rem", sm: "0.875rem" },
                                         fontWeight: 600,
@@ -234,7 +254,7 @@ const Navbar = () => {
                                     },
                                 }}
                                 secondaryTypographyProps={{
-                                    title: user?.primaryEmailAddress?.emailAddress,
+                                    title: firebaseUser.email,
                                     sx: {
                                         fontSize: { xs: "0.65rem", sm: "0.75rem" },
                                         lineHeight: 1.3,
@@ -443,14 +463,12 @@ const Navbar = () => {
                             Cancel
                         </AlertDialogCancel>
 
-                        <SignOutButton>
-                            <AlertDialogAction
-                                className="bg-red-600 hover:bg-red-700 text-white"
-                                onClick={() => setLogoutOpen(false)}
-                            >
-                                Logout
-                            </AlertDialogAction>
-                        </SignOutButton>
+                        <AlertDialogAction
+                            className="bg-red-600 hover:bg-red-700 text-white"
+                            onClick={handleLogout}
+                        >
+                            Logout
+                        </AlertDialogAction>
 
                     </AlertDialogFooter>
                 </AlertDialogContent>

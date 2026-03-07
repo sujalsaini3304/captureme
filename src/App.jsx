@@ -1,21 +1,44 @@
 import { Route, Routes, Navigate, useLocation } from "react-router-dom";
-import { useAuth } from "@clerk/clerk-react";
+import { useEffect, useState } from "react";
+import { onAuthStateChanged } from "firebase/auth";
+import { auth } from "../firebase.config";
+
 import Dashboard from "./screens/Dashboard";
 import Setting from "./screens/Setting";
 import MainLayout from "./layouts/MainLayouts";
 import SecondaryLayout from "./layouts/SecondaryLayout";
 import OnboardingPage from "./screens/OnboardingPage";
 import ProtectedRoute from "./ProtectedRoute";
-import { useEffect } from "react";
+
 import AOS from "aos";
 import "aos/dist/aos.css";
-import CircularProgress from '@mui/material/CircularProgress';
+
+import CircularProgress from "@mui/material/CircularProgress";
+
+import Login from "./screens/Login";
+import Signup from "./screens/Signup";
+import ResetPassword from "./screens/ResetPassword";
 
 const App = () => {
-  const { isSignedIn, isLoaded } = useAuth();
+
+  const [user, setUser] = useState(null);
+  const [isLoaded, setIsLoaded] = useState(false);
 
   const location = useLocation();
 
+  const hasPasswordProvider = user?.providerData?.some(
+    (provider) => provider.providerId === "password"
+  );
+  const isAuthenticated = !!user && (!hasPasswordProvider || user.emailVerified);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setIsLoaded(true);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     AOS.init({
@@ -32,7 +55,6 @@ const App = () => {
     return (
       <div className={`min-h-screen ${localStorage.getItem("theme") === "dark" ? "bg-gray-900" : "bg-white"} text-foreground relative`}>
 
-        {/* ── Splash Screen Overlay (blocks all interaction) ── */}
         <div
           className={`
           fixed inset-0 z-[9999]
@@ -41,17 +63,10 @@ const App = () => {
           transition-opacity duration-300
           ${isLoaded ? "opacity-0 pointer-events-none" : "opacity-100 pointer-events-auto"}
         `}
-          // Extra safety: block keyboard, scroll, and touch
-          onKeyDown={(e) => e.stopPropagation()}
-          onWheel={(e) => e.stopPropagation()}
-          onTouchMove={(e) => e.preventDefault()}
-          aria-hidden="false"
-          aria-busy="true"
-          aria-label="Loading, please wait"
         >
-          {/* Prevent tab focus escaping to content behind */}
           <div tabIndex={-1} style={{ outline: "none" }}>
             <div className="flex flex-col items-center gap-6">
+
               <div className="flex items-center gap-3 text-2xl font-semibold select-none">
                 <img
                   src="/icon.png"
@@ -69,19 +84,9 @@ const App = () => {
               <p className="text-sm text-muted-foreground select-none">
                 Preparing your workspace...
               </p>
+
             </div>
           </div>
-        </div>
-
-        {/* ── App Content (visually hidden + inert while loading) ── */}
-        <div
-          className={isLoaded ? "visible" : "invisible"}
-          // `inert` disables all interaction (clicks, focus, scroll) on the content below
-          {...(!isLoaded ? { inert: "" } : {})}
-        >
-          <Routes>
-            {/* your routes */}
-          </Routes>
         </div>
 
       </div>
@@ -95,14 +100,14 @@ const App = () => {
       <Route
         path="/"
         element={
-          isSignedIn ? <Navigate to="/dashboard" replace /> : <OnboardingPage />
+          isAuthenticated ? <Navigate to="/dashboard" replace /> : <OnboardingPage />
         }
       />
 
       {/* Protected Dashboard */}
       <Route
         element={
-          <ProtectedRoute>
+          <ProtectedRoute user={user}>
             <MainLayout />
           </ProtectedRoute>
         }
@@ -113,13 +118,17 @@ const App = () => {
       {/* Protected Settings */}
       <Route
         element={
-          <ProtectedRoute>
+          <ProtectedRoute user={user}>
             <SecondaryLayout name="Settings" />
           </ProtectedRoute>
         }
       >
         <Route path="/setting" element={<Setting />} />
       </Route>
+
+      <Route path="/login" element={<Login />} />
+      <Route path="/signup" element={<Signup />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
 
     </Routes>
   );

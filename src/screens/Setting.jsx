@@ -16,10 +16,12 @@ import DialogContentText from '@mui/material/DialogContentText';
 import DialogTitle from '@mui/material/DialogTitle';
 import Slide from '@mui/material/Slide';
 import { TriangleAlert } from "lucide-react";
-import { useAuth } from "@clerk/clerk-react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import CircularProgress from "@mui/material/CircularProgress";
+
+import { auth } from "../../firebase.config.js";
+import { getIdToken, signOut } from "firebase/auth";
 
 const Transition = React.forwardRef(function Transition(props, ref) {
   return <Slide direction="up" ref={ref} {...props} />;
@@ -31,7 +33,6 @@ export default function Setting() {
     localStorage.getItem("theme") === "dark"
   );
   const [isDeleting, setIsDeleting] = React.useState(false);
-  const { getToken } = useAuth();
   const navigate = useNavigate();
 
   const handleClickOpen = () => {
@@ -45,7 +46,15 @@ export default function Setting() {
   const handleAccountDelete = async () => {
     try {
       setIsDeleting(true);
-      const token = await getToken({ template: "SnapDock", skipCache: true });
+
+      const user = auth.currentUser;
+
+      if (!user) {
+        alert("User not authenticated.");
+        return;
+      }
+
+      const token = await getIdToken(user);
 
       await axios.delete(
         `${import.meta.env.VITE_EXPRESS_SERVER_ENDPOINT}/api/account`,
@@ -54,8 +63,11 @@ export default function Setting() {
         }
       );
 
+      // sign out user
+      await signOut(auth);
+
       // Account deleted successfully - redirect to home
-      window.location.href = "/";
+      navigate("/login", { replace: true });
       
     } catch (error) {
       console.error("Account deletion error:", error);
@@ -176,14 +188,12 @@ export default function Setting() {
           sx: {
             bgcolor: "background.paper",
             backgroundImage: "none",
-            // Dark mode via MUI's colorScheme-aware theming
             ".dark &, [data-theme='dark'] &": {
-              bgcolor: "#111827", // gray-900
-              color: "#e5e7eb",   // gray-200
+              bgcolor: "#111827",
+              color: "#e5e7eb",
             },
           },
         }}
-        // Ensure the backdrop portal inherits dark styles
         slotProps={{
           backdrop: {
             sx: {
@@ -199,7 +209,7 @@ export default function Setting() {
         <DialogContent>
           <DialogContentText
             sx={{
-              ".dark &, [data-theme='dark'] &": { color: "#9ca3af" }, // gray-400
+              ".dark &, [data-theme='dark'] &": { color: "#9ca3af" },
             }}
             className="text-sm text-gray-600"
           >
@@ -232,5 +242,3 @@ export default function Setting() {
     </>
   )
 }
-
-
