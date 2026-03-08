@@ -1,9 +1,10 @@
-import { useState , useEffect } from "react";
+import { useState, useEffect } from "react";
 import { auth, provider } from "../../firebase.config";
 import {
   signInWithPopup,
   signInWithEmailAndPassword,
-  signOut
+  signOut,
+  fetchSignInMethodsForEmail
 } from "firebase/auth";
 import { Link } from "react-router-dom";
 import CircularProgress from '@mui/material/CircularProgress';
@@ -47,21 +48,80 @@ export default function Login() {
     setOpen(false);
   };
 
-  const googleLogin = async () => {
-    try {
-      const { user } = await signInWithPopup(auth, provider);
-      console.log(user);
-      showAlert("Google login successful", "success");
-    } catch (err) {
-      console.error(err.message);
-      showAlert("Google login failed", "error");
-    }
-  };
+  // const googleLogin = async () => {
+  //   try {
+  //     const { user } = await signInWithPopup(auth, provider);
+  //     console.log(user);
+  //     showAlert("Google login successful", "success");
+  //   } catch (err) {
+  //     console.error(err.message);
+  //     showAlert("Google login failed", "error");
+  //   }
+  // };
+
+  // const emailLogin = async () => {
+
+  //   try {
+
+  //     setShowLoader(true);
+
+  //     if (email.trim() === "") {
+  //       setShowLoader(false);
+  //       showAlert("Enter your email", "error");
+  //       return;
+  //     }
+
+  //     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  //     if (!emailRegex.test(email)) {
+  //       setShowLoader(false);
+  //       showAlert("Enter a valid email address", "error");
+  //       return;
+  //     }
+
+  //     if (password === "") {
+  //       setShowLoader(false);
+  //       showAlert("Enter password", "error");
+  //       return;
+  //     }
+
+  //     const { user } = await signInWithEmailAndPassword(auth, email, password);
+
+  //     if (!user.emailVerified) {
+  //       await signOut(auth);
+  //       setShowLoader(false);
+  //       showAlert("Please verify your email first", "warning");
+  //       return;
+  //     }
+
+  //     setShowLoader(false);
+  //     showAlert("Login successful", "success");
+
+  //     console.log(user);
+
+  //   } catch (err) {
+
+  //     setShowLoader(false);
+
+  //     if (err.code === "auth/user-not-found") {
+  //       showAlert("User not found", "error");
+  //     }
+  //     else if (err.code === "auth/wrong-password") {
+  //       showAlert("Wrong password", "error");
+  //     }
+  //     else if (err.code === "auth/invalid-credential"){
+  //       showAlert("Invalid credential", "error");
+  //     }
+  //     else {
+  //       showAlert("Login failed", "error");
+  //     }
+
+  //     console.error(err.message);
+  //   }
+  // };
 
   const emailLogin = async () => {
-
     try {
-
       setShowLoader(true);
 
       if (email.trim() === "") {
@@ -71,19 +131,37 @@ export default function Login() {
       }
 
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
       if (!emailRegex.test(email)) {
         setShowLoader(false);
         showAlert("Enter a valid email address", "error");
         return;
       }
 
-      if (password === "") {
+      if (password.trim() === "") {
         setShowLoader(false);
         showAlert("Enter password", "error");
         return;
       }
 
+      // Fetch sign-in methods
+      let methods = [];
+      try {
+        methods = await fetchSignInMethodsForEmail(auth, email);
+      } catch (fetchErr) {
+        console.error("Error fetching sign-in methods:", fetchErr);
+      }
+
+      if (!methods.includes("password")) {
+        // User cannot login with password (maybe Google-only or no account)
+        setShowLoader(false);
+        showAlert(
+          "No account found for email/password. If you registered via Google, please login with Google.",
+          "error"
+        );
+        return;
+      }
+
+      // Proceed with email/password login
       const { user } = await signInWithEmailAndPassword(auth, email, password);
 
       if (!user.emailVerified) {
@@ -95,26 +173,42 @@ export default function Login() {
 
       setShowLoader(false);
       showAlert("Login successful", "success");
-
       console.log(user);
 
     } catch (err) {
-
       setShowLoader(false);
-
-      if (err.code === "auth/user-not-found") {
-        showAlert("User not found", "error");
-      }
-      else if (err.code === "auth/wrong-password") {
-        showAlert("Wrong password", "error");
-      }
-      else {
-        showAlert("Login failed", "error");
-      }
-
-      console.error(err.message);
+      showAlert("Invalid email or password", "error");
+      console.error(err.code, err.message);
     }
   };
+
+  // Google login
+  const googleLogin = async () => {
+    try {
+      const { user } = await signInWithPopup(auth, provider);
+
+      if (!user.emailVerified) {
+        await signOut(auth);
+        showAlert("Please verify your email first", "warning");
+        return;
+      }
+
+      showAlert("Google login successful", "success");
+      console.log(user);
+    } catch (err) {
+      if (err.code === "auth/account-exists-with-different-credential") {
+        showAlert(
+          "You have already registered with this email using a different method. Please login with you original method.",
+          "error"
+        );
+      } else {
+        showAlert("Google login failed", "error");
+      }
+
+      console.error(err.code, err.message);
+    }
+  };
+
 
   return (
 
