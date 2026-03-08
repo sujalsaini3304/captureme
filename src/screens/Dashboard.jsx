@@ -283,6 +283,44 @@ const Dashboard = () => {
                 page={page}
                 onChange={(e, value) => setPage(value)}
                 shape="rounded"
+                sx={{
+                  ".MuiPaginationItem-root": {
+                    color: "#1f2937",
+                    borderColor: "#d1d5db",
+                    fontWeight: 500,
+                  },
+                  ".MuiPaginationItem-root:hover": {
+                    backgroundColor: "#f3f4f6",
+                  },
+                  ".MuiPaginationItem-root.Mui-selected": {
+                    backgroundColor: "#3b82f6",
+                    color: "#ffffff",
+                    fontWeight: 600,
+                    borderColor: "#3b82f6",
+                  },
+                  ".MuiPaginationItem-root.Mui-selected:hover": {
+                    backgroundColor: "#2563eb",
+                  },
+                  ".dark &, [data-theme='dark'] &": {
+                    ".MuiPaginationItem-root": {
+                      color: "#e2e8f0",
+                      borderColor: "#475569",
+                    },
+                    ".MuiPaginationItem-ellipsis": {
+                      color: "#cbd5e1",
+                    },
+                    ".MuiPaginationItem-root:hover": {
+                      backgroundColor: "rgba(226, 232, 240, 0.12)",
+                    },
+                    ".MuiPaginationItem-root.Mui-selected": {
+                      backgroundColor: "#60a5fa",
+                      color: "#ffffff",
+                    },
+                    ".MuiPaginationItem-root.Mui-selected:hover": {
+                      backgroundColor: "#3b82f6",
+                    },
+                  },
+                }}
               />
 
             </Stack>
