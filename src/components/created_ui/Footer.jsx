@@ -2,7 +2,7 @@ import LockOutlineIcon from "@mui/icons-material/LockOutline";
 
 const Footer = () => {
     return (
-        <footer className="w-full 
+        <footer className="w-full mt-6
                        bg-white dark:bg-gray-900 
                        border-t border-gray-200 dark:border-gray-700">
 

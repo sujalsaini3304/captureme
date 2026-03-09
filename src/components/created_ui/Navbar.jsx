@@ -91,7 +91,7 @@ const Navbar = () => {
                 }
             );
 
-            const { timestamp, signature, apiKey, cloudName, folder, transformation } = data;
+            const { timestamp, signature, apiKey, cloudName, folder, transformation, type } = data;
 
             /* ================= Compressing and UPLOAD FILES ================= */
             const compressedFiles = await Promise.all(
@@ -118,6 +118,7 @@ const Navbar = () => {
                         formData.append("timestamp", timestamp);
                         formData.append("signature", signature);
                         formData.append("folder", folder);
+                        formData.append("type", type);
                         formData.append("allowed_formats", "jpg,png,jpeg,webp");
                         formData.append("transformation", transformation);
 
