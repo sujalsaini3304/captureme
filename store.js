@@ -23,17 +23,20 @@ const useStore = create((set, get) => ({
   // ────────────────────────────────────────────────
   imageCache: null,       // { data: [...], total, expiresAt }
   imageCacheTime: null,   // when cache was set (Date.now)
+  cacheUserId: null,      // uid of the user whose data is cached
 
-  setImageCache: (cache) =>
+  setImageCache: (cache, userId) =>
     set({
       imageCache: cache,
       imageCacheTime: Date.now(),
+      cacheUserId: userId || null,
     }),
 
   clearImageCache: () =>
     set({
       imageCache: null,
       imageCacheTime: null,
+      cacheUserId: null,
     }),
 
   /**

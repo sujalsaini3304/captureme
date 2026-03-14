@@ -15,13 +15,15 @@ import DialogContent from '@mui/material/DialogContent';
 import DialogContentText from '@mui/material/DialogContentText';
 import DialogTitle from '@mui/material/DialogTitle';
 import Slide from '@mui/material/Slide';
-import { TriangleAlert } from "lucide-react";
+import Avatar from '@mui/material/Avatar';
+import { TriangleAlert, Mail, User } from "lucide-react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import CircularProgress from "@mui/material/CircularProgress";
 
 import { auth } from "../../firebase.config.js";
-import { getIdToken, signOut } from "firebase/auth";
+import { getIdToken, signOut, onAuthStateChanged } from "firebase/auth";
+import useStore from "../../store";
 
 const Transition = React.forwardRef(function Transition(props, ref) {
   return <Slide direction="up" ref={ref} {...props} />;
@@ -33,7 +35,17 @@ export default function Setting() {
     localStorage.getItem("theme") === "dark"
   );
   const [isDeleting, setIsDeleting] = React.useState(false);
+  const [firebaseUser, setFirebaseUser] = React.useState(auth.currentUser);
   const navigate = useNavigate();
+  const { clearImageCache } = useStore();
+
+  // Listen for auth state
+  React.useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setFirebaseUser(user);
+    });
+    return () => unsubscribe();
+  }, []);
 
   const handleClickOpen = () => {
     setOpen(true);
@@ -63,12 +75,13 @@ export default function Setting() {
         }
       );
 
-      // sign out user
+      // clear cached data and sign out user
+      clearImageCache();
       await signOut(auth);
 
       // Account deleted successfully - redirect to home
       navigate("/login", { replace: true });
-      
+
     } catch (error) {
       console.error("Account deletion error:", error);
       alert("Failed to delete account. Please try again.");
@@ -100,9 +113,86 @@ export default function Setting() {
         bg-white dark:bg-gray-900
         text-gray-900 dark:text-gray-200
         border-gray-200 dark:border-gray-700
-        p-6 h-screen
+        p-6 min-h-[calc(100vh-3.5rem)]
         transition-colors duration-300"
       >
+
+        {/* ================= User Profile Card ================= */}
+        {firebaseUser && (
+          <div className="mb-2">
+            <div
+              className="
+                flex items-center gap-4 p-4
+                rounded-2xl
+                bg-gray-50 dark:bg-gray-800/50
+                border border-gray-200 dark:border-gray-700/50
+                transition-colors duration-300
+              "
+            >
+              {/* Avatar */}
+              <div className="flex-shrink-0">
+                {firebaseUser.photoURL ? (
+                  <img
+                    src={firebaseUser.photoURL}
+                    alt="profile"
+                    className="
+                      h-14 w-14 rounded-full object-cover
+                      border-2 border-white dark:border-gray-600
+                      shadow-md
+                    "
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <Avatar
+                    sx={{
+                      width: 56,
+                      height: 56,
+                      fontSize: "1.25rem",
+                      fontWeight: 600,
+                      bgcolor: "#3b82f6",
+                      boxShadow: "0 4px 12px rgba(59, 130, 246, 0.3)",
+                    }}
+                  >
+                    {(firebaseUser.displayName || firebaseUser.email || "U")
+                      .charAt(0)
+                      .toUpperCase()}
+                  </Avatar>
+                )}
+              </div>
+
+              {/* Name + Email */}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <User size={14} className="text-gray-400 dark:text-gray-500 flex-shrink-0" />
+                  <p
+                    className="
+                      text-[0.9rem] font-semibold leading-tight
+                      text-gray-900 dark:text-gray-100
+                      truncate
+                    "
+                    title={firebaseUser.displayName || "User"}
+                  >
+                    {firebaseUser.displayName || "User"}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <Mail size={13} className="text-gray-400 dark:text-gray-500 flex-shrink-0" />
+                  <p
+                    className="
+                      text-[0.75rem] leading-tight
+                      text-gray-500 dark:text-gray-400
+                      truncate
+                    "
+                    title={firebaseUser.email || ""}
+                  >
+                    {firebaseUser.email || ""}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ================= Dark Mode Toggle ================= */}
         <FieldLabel
@@ -227,9 +317,9 @@ export default function Setting() {
           >
             Close
           </Button>
-          <Button 
-            onClick={handleAccountDelete} 
-            variant="outlined" 
+          <Button
+            onClick={handleAccountDelete}
+            variant="outlined"
             color="error"
             disabled={isDeleting}
             startIcon={isDeleting ? <CircularProgress size={16} /> : null}

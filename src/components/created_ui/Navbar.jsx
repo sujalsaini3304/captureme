@@ -30,7 +30,7 @@ import useStore from "../../../store";
 
 const Navbar = () => {
     const MAX_FILES = 10;
-    const { setIsUploading, setIsUploadSuccessfull, setIsUploadErrorOccured, selectionMode, setSelectionMode } = useStore();
+    const { setIsUploading, setIsUploadSuccessfull, setIsUploadErrorOccured, selectionMode, setSelectionMode, clearImageCache } = useStore();
     const limit = pLimit(5);
     const navigate = useNavigate();
 
@@ -181,6 +181,7 @@ const Navbar = () => {
 
     const handleLogout = async () => {
         try {
+            clearImageCache();
             await signOut(auth);
             setLogoutOpen(false);
             navigate("/login", { replace: true });
@@ -355,7 +356,46 @@ const Navbar = () => {
                 </div>
 
                 {/* DESKTOP MENU */}
-                <div className="hidden sm:flex items-center gap-4 ml-auto">
+                <div className="hidden sm:flex items-center gap-3 ml-auto">
+
+                    {/* User Avatar — links to settings/profile */}
+                    {firebaseUser && (
+                        <Link
+                            to="/setting"
+                            className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-full
+                                hover:bg-gray-100 dark:hover:bg-gray-800
+                                transition-all duration-200 cursor-pointer
+                                border border-transparent hover:border-gray-200 dark:hover:border-gray-700"
+                        >
+                            {firebaseUser.photoURL ? (
+                                <img
+                                    src={firebaseUser.photoURL}
+                                    alt="profile"
+                                    referrerPolicy="no-referrer"
+                                    className="h-7 w-7 rounded-full object-cover border border-gray-200 dark:border-gray-600 shadow-sm"
+                                />
+                            ) : (
+                                <Avatar
+                                    sx={{
+                                        width: 28,
+                                        height: 28,
+                                        fontSize: "0.75rem",
+                                        fontWeight: 600,
+                                        bgcolor: "#3b82f6",
+                                    }}
+                                >
+                                    {(firebaseUser.displayName || firebaseUser.email || "U").charAt(0).toUpperCase()}
+                                </Avatar>
+                            )}
+                            <span className="text-sm font-medium max-w-[120px] truncate hidden md:inline">
+                                {firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "User"}
+                            </span>
+                        </Link>
+                    )}
+
+                    {/* Separator */}
+                    <div className="h-5 w-px bg-gray-200 dark:bg-gray-700" />
+
                     <button
                         onClick={() => fileInputRef.current.click()}
                         className="

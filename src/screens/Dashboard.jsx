@@ -27,6 +27,7 @@ const Dashboard = () => {
     clearImageCache,
     getPage,
     isCacheExpired,
+    cacheUserId,
   } = useStore();
 
   const exitSelectionMode = () => setSelectionMode(false);
@@ -34,9 +35,34 @@ const Dashboard = () => {
   // Firebase user
   const [user, setUser] = useState(null);
 
-  // Pagination (now local — no server calls)
   const [page, setPage] = useState(1);
-  const limit = window.innerWidth >= 1024 ? 20 : 10;
+  const [limit, setLimit] = useState(window.innerWidth >= 1024 ? 20 : 10);
+
+  // Update limit dynamically if orientation/window size changes
+  useEffect(() => {
+    const handleResize = () => {
+      // Small timeout allows mobile browsers to finish rotating and updating innerWidth
+      setTimeout(() => {
+        setLimit(window.innerWidth >= 1024 ? 20 : 10);
+      }, 150);
+    };
+
+    window.addEventListener("resize", handleResize);
+    window.addEventListener("orientationchange", handleResize);
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      window.removeEventListener("orientationchange", handleResize);
+    };
+  }, []);
+
+  // Ensure current page doesn't exceed total pages if limit increases
+  useEffect(() => {
+    if (!imageCache?.data) return;
+    const currentTotalPages = Math.ceil(imageCache.total / limit) || 1;
+    if (page > currentTotalPages) {
+      setPage(currentTotalPages);
+    }
+  }, [limit, imageCache, page]);
 
   const [open, setOpen] = useState(false);
   const [isFetching, setIsFetching] = useState(false);
@@ -89,7 +115,7 @@ const Dashboard = () => {
           data: res.data.data || [],
           total: res.data.total || 0,
           expiresAt: res.data.expiresAt || null,
-        });
+        }, user.uid);
       }
 
     } catch (error) {
@@ -106,6 +132,7 @@ const Dashboard = () => {
   //
   // Sets a timer to re-fetch the batch
   // 60 seconds before signed URLs expire.
+  // If already expired, fetches immediately.
   // ===============================
   useEffect(() => {
     // Clear any existing timer
@@ -123,6 +150,9 @@ const Dashboard = () => {
       refreshTimerRef.current = setTimeout(() => {
         fetchBatch();
       }, msUntilRefresh);
+    } else {
+      // URLs already expired or about to — refresh immediately
+      fetchBatch();
     }
 
     return () => {
@@ -132,13 +162,39 @@ const Dashboard = () => {
 
 
   // ===============================
+  // RE-CHECK ON TAB FOCUS
+  //
+  // Browsers throttle setTimeout in background tabs,
+  // so the scheduled refresh may not fire on time.
+  // When the user returns, check and re-fetch if needed.
+  // ===============================
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible" && user && isCacheExpired()) {
+        fetchBatch();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [user, fetchBatch, isCacheExpired]);
+
+
+  // ===============================
   // INITIAL FETCH — when user is ready
   // ===============================
   useEffect(() => {
     if (!user) return;
 
-    // If no cache or cache expired, fetch fresh batch
-    if (!imageCache || isCacheExpired()) {
+    // If cache belongs to a different user, clear it first
+    if (cacheUserId && cacheUserId !== user.uid) {
+      clearImageCache();
+    }
+
+    // If no cache or cache expired or different user, fetch fresh batch
+    if (!imageCache || isCacheExpired() || cacheUserId !== user.uid) {
       setPage(1);
       fetchBatch();
     }
