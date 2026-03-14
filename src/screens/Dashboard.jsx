@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import axios from "axios";
 import GridBox from "../components/created_ui/GridBox";
 import Pagination from "@mui/material/Pagination";
@@ -21,6 +21,12 @@ const Dashboard = () => {
     isUploadSuccessfull,
     selectionMode,
     setSelectionMode,
+    // ── Image cache from Zustand ──
+    imageCache,
+    setImageCache,
+    clearImageCache,
+    getPage,
+    isCacheExpired,
   } = useStore();
 
   const exitSelectionMode = () => setSelectionMode(false);
@@ -28,12 +34,8 @@ const Dashboard = () => {
   // Firebase user
   const [user, setUser] = useState(null);
 
-  // Images
-  const [images, setImages] = useState([]);
-
-  // Pagination
+  // Pagination (now local — no server calls)
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
   const limit = window.innerWidth >= 1024 ? 20 : 10;
 
   const [open, setOpen] = useState(false);
@@ -41,68 +43,119 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const [authLoading, setAuthLoading] = useState(true);
 
+  // Auto-refresh timer ref
+  const refreshTimerRef = useRef(null);
+
   // ===============================
   // AUTH LISTENER
   // ===============================
-
   useEffect(() => {
 
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-
       if (!currentUser) {
         navigate("/", { replace: true });
       } else {
         setUser(currentUser);
       }
-
       setAuthLoading(false);
-
     });
 
     return () => unsubscribe();
 
   }, [navigate]);
 
+
   // ===============================
-  // FETCH IMAGES
+  // FETCH BATCH (single API call for ALL images)
   // ===============================
-  const fetchImages = async (currentPage = page) => {
+  const fetchBatch = useCallback(async () => {
 
     if (!user) return;
 
     setIsFetching(true);
 
     try {
-
       const token = await getIdToken(user);
 
       const res = await axios.get(
-        `${import.meta.env.VITE_EXPRESS_SERVER_ENDPOINT}/api/images`,
+        `${import.meta.env.VITE_EXPRESS_SERVER_ENDPOINT}/api/images/batch`,
         {
-          params: { page: currentPage, limit, sort: "desc" },
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         }
       );
 
-      const fetchedImages = res.data?.data || [];
-
-      setImages(fetchedImages);
-
-      setTotalPages(
-        fetchedImages.length > 0 ? res.data?.totalPages || 1 : 1
-      );
+      if (res.data?.success) {
+        setImageCache({
+          data: res.data.data || [],
+          total: res.data.total || 0,
+          expiresAt: res.data.expiresAt || null,
+        });
+      }
 
     } catch (error) {
-
-      console.error("Fetch images error:", error);
-      setImages([]);
-      setTotalPages(1);
-      setPage(1);
-
+      console.error("Fetch batch error:", error);
+      clearImageCache();
     } finally {
       setIsFetching(false);
     }
-  };
+  }, [user, setImageCache, clearImageCache]);
+
+
+  // ===============================
+  // AUTO-REFRESH BEFORE URL EXPIRY
+  //
+  // Sets a timer to re-fetch the batch
+  // 60 seconds before signed URLs expire.
+  // ===============================
+  useEffect(() => {
+    // Clear any existing timer
+    if (refreshTimerRef.current) {
+      clearTimeout(refreshTimerRef.current);
+    }
+
+    if (!imageCache?.expiresAt) return;
+
+    const bufferMs = 60 * 1000; // refresh 60s before expiry
+    const expiresAtMs = imageCache.expiresAt * 1000;
+    const msUntilRefresh = expiresAtMs - bufferMs - Date.now();
+
+    if (msUntilRefresh > 0) {
+      refreshTimerRef.current = setTimeout(() => {
+        fetchBatch();
+      }, msUntilRefresh);
+    }
+
+    return () => {
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    };
+  }, [imageCache?.expiresAt, fetchBatch]);
+
+
+  // ===============================
+  // INITIAL FETCH — when user is ready
+  // ===============================
+  useEffect(() => {
+    if (!user) return;
+
+    // If no cache or cache expired, fetch fresh batch
+    if (!imageCache || isCacheExpired()) {
+      setPage(1);
+      fetchBatch();
+    }
+  }, [user]);
+
+
+  // ===============================
+  // AUTO REFRESH AFTER UPLOAD
+  // ===============================
+  useEffect(() => {
+    if (isUploadSuccessfull) {
+      clearImageCache();
+      setPage(1);
+      fetchBatch();
+    }
+  }, [isUploadSuccessfull]);
+
 
   // ===============================
   // DELETE IMAGES
@@ -112,7 +165,6 @@ const Dashboard = () => {
     if (!user) return;
 
     try {
-
       const token = await getIdToken(user);
 
       await axios.delete(
@@ -123,52 +175,24 @@ const Dashboard = () => {
         }
       );
 
-      fetchImages(page);
+      // Clear cache and re-fetch
+      clearImageCache();
+      fetchBatch();
 
     } catch (error) {
       console.error("Delete error:", error);
     }
   };
 
-  // ===============================
-  // RESET WHEN USER CHANGES
-  // ===============================
-  useEffect(() => {
-
-    if (!user) return;
-
-    setImages([]);
-    setTotalPages(1);
-    setPage(1);
-
-    fetchImages(1);
-
-  }, [user]);
 
   // ===============================
-  // PAGE CHANGE
+  // GET CURRENT PAGE FROM LOCAL CACHE
+  // (no server call — instant!)
   // ===============================
-  useEffect(() => {
+  const currentPage = getPage(page, limit);
+  const images = currentPage?.images || [];
+  const totalPages = currentPage?.totalPages || 1;
 
-    if (!user) return;
-
-    fetchImages(page);
-
-  }, [page]);
-
-  // ===============================
-  // AUTO REFRESH AFTER UPLOAD
-  // ===============================
-  useEffect(() => {
-
-    if (isUploadSuccessfull) {
-
-      fetchImages(1);
-      setPage(1);
-
-    }
-
-  }, [isUploadSuccessfull]);
 
   // ===============================
   // UPLOAD LOADER
@@ -177,35 +201,27 @@ const Dashboard = () => {
     setOpen(isUploading);
   }, [isUploading]);
 
+
   // ===============================
   // LOCK SCROLL
   // ===============================
   const isBackdropOpen = open || isFetching;
 
   useEffect(() => {
-
     if (isBackdropOpen) {
-
       const scrollBarWidth =
         window.innerWidth - document.documentElement.clientWidth;
-
       document.body.style.overflow = "hidden";
       document.body.style.paddingRight = `${scrollBarWidth}px`;
-
     } else {
-
       document.body.style.overflow = "auto";
       document.body.style.paddingRight = "0px";
-
     }
 
     return () => {
-
       document.body.style.overflow = "auto";
       document.body.style.paddingRight = "0px";
-
     };
-
   }, [isBackdropOpen]);
 
   if (authLoading) return null;
@@ -271,9 +287,9 @@ const Dashboard = () => {
           </div>
         )}
 
-        {/* PAGINATION */}
+        {/* PAGINATION — now instant! No server calls. */}
 
-        {images.length > 0 && (
+        {images.length > 0 && totalPages > 1 && (
           <div className="flex pb-6 mt-auto pt-6 justify-center sm:justify-end sm:mr-2">
 
             <Stack spacing={2}>
